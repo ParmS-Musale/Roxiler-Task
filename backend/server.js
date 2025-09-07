@@ -1,4 +1,5 @@
 const express  = require ('express');
+require("./config/database")
 
 const app = express();
 const PORT = 5000 ;
