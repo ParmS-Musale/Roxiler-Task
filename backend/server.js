@@ -1,10 +1,4 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
-require("./config/database");
-
+const express  = require ('express');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
