@@ -1,0 +1,13 @@
+const express = require('express');
+const router = express.Router();
+
+// Placeholder routes - we'll implement these next
+router.post('/login', (req, res) => {
+  res.json({ message: 'Login endpoint - Coming soon' });
+});
+
+router.post('/register', (req, res) => {
+  res.json({ message: 'Register endpoint - Coming soon' });
+});
+
+module.exports = router;
