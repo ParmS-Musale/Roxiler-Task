@@ -1,31 +1,24 @@
-const express  = require ('express');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
+const { testConnection } = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Test database connection (with error handling)
-let dbConnected = false;
-try {
-  const { testConnection } = require('./config/database');
-  testConnection().then(() => {
-    dbConnected = true;
-    console.log('✅ Database connected successfully');
-  }).catch((error) => {
-    console.log('⚠️  Database connection failed:', error.message);
-    console.log('📝 Server will start anyway for testing...');
-  });
-} catch (error) {
-  console.log('⚠️  Database config not found, continuing without database...');
-}
 
 // Security middleware
 app.use(helmet());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Too many requests from this IP, please try again later.' }
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
+  }
 });
 app.use('/api/', limiter);
 
@@ -41,29 +34,32 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: dbConnected ? 'Connected' : 'Disconnected'
+    uptime: process.uptime()
   });
 });
+
+// API routes (we'll add these next)
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/stores', require('./routes/stores'));
+app.use('/api/ratings', require('./routes/ratings'));
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Store Rating Platform API',
     version: '1.0.0',
-    status: 'Running',
-    database: dbConnected ? 'Connected' : 'Disconnected',
     endpoints: {
       health: '/health',
       auth: '/api/auth',
@@ -74,52 +70,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// API routes with error handling
-try {
-  app.use('/api/auth', require('./routes/auth'));
-  console.log('✅ Auth routes loaded');
-} catch (error) {
-  console.log('⚠️  Auth routes failed to load:', error.message);
-  // Create fallback auth route
-  app.use('/api/auth', (req, res) => {
-    res.json({ message: 'Auth routes not available yet', error: error.message });
-  });
-}
-
-try {
-  app.use('/api/users', require('./routes/users'));
-  console.log('✅ User routes loaded');
-} catch (error) {
-  console.log('⚠️  User routes failed to load:', error.message);
-  app.use('/api/users', (req, res) => {
-    res.json({ message: 'User routes not available yet' });
-  });
-}
-
-try {
-  app.use('/api/stores', require('./routes/stores'));
-  console.log('✅ Store routes loaded');
-} catch (error) {
-  console.log('⚠️  Store routes failed to load:', error.message);
-  app.use('/api/stores', (req, res) => {
-    res.json({ message: 'Store routes not available yet' });
-  });
-}
-
-try {
-  app.use('/api/ratings', require('./routes/ratings'));
-  console.log('✅ Rating routes loaded');
-} catch (error) {
-  console.log('⚠️  Rating routes failed to load:', error.message);
-  app.use('/api/ratings', (req, res) => {
-    res.json({ message: 'Rating routes not available yet' });
-  });
-}
-
 // Global error handler
 app.use((error, req, res, next) => {
   console.error('Global Error Handler:', error);
   
+  // Validation errors
   if (error.name === 'ValidationError') {
     return res.status(400).json({
       success: false,
@@ -128,6 +83,7 @@ app.use((error, req, res, next) => {
     });
   }
 
+  // JWT errors
   if (error.name === 'JsonWebTokenError') {
     return res.status(401).json({
       success: false,
@@ -142,6 +98,7 @@ app.use((error, req, res, next) => {
     });
   }
 
+  // Database errors
   if (error.code === 'ER_DUP_ENTRY') {
     return res.status(400).json({
       success: false,
@@ -149,6 +106,7 @@ app.use((error, req, res, next) => {
     });
   }
 
+  // Default error
   res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || 'Internal Server Error',
@@ -167,6 +125,17 @@ app.use((req, res) => {
 // Start server
 const startServer = async () => {
   try {
+    // Test database connection if available
+    if (testConnection) {
+      try {
+        await testConnection();
+        dbConnected = true;
+      } catch (dbError) {
+        console.log('⚠️  Database connection failed:', dbError.message);
+        console.log('📝 Server will start anyway...');
+      }
+    }
+    
     app.listen(PORT, () => {
       console.log(`
 🚀 Server is running on port ${PORT}
