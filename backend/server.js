@@ -1,10 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+require("dotenv").config();
 
-const { testConnection } = require('./config/database');
+const {testConnection} = require("./config/database");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,22 +17,24 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: {
-    error: 'Too many requests from this IP, please try again later.'
-  }
+    error: "Too many requests from this IP, please try again later.",
+  },
 });
-app.use('/api/', limiter);
+app.use("/api/", limiter);
 
 // CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -41,76 +43,76 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
   res.status(200).json({
-    status: 'OK',
+    status: "OK",
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
 // API routes (we'll add these next)
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/stores', require('./routes/stores'));
-app.use('/api/ratings', require('./routes/ratings'));
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/users", require("./routes/users"));
+app.use("/api/stores", require("./routes/stores"));
+app.use("/api/ratings", require("./routes/ratings"));
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   res.json({
-    message: 'Store Rating Platform API',
-    version: '1.0.0',
+    message: "Store Rating Platform API",
+    version: "1.0.0",
     endpoints: {
-      health: '/health',
-      auth: '/api/auth',
-      users: '/api/users',
-      stores: '/api/stores',
-      ratings: '/api/ratings'
-    }
+      health: "/health",
+      auth: "/api/auth",
+      users: "/api/users",
+      stores: "/api/stores",
+      ratings: "/api/ratings",
+    },
   });
 });
 
 // Global error handler
 app.use((error, req, res, next) => {
-  console.error('Global Error Handler:', error);
-  
+  console.error("Global Error Handler:", error);
+
   // Validation errors
-  if (error.name === 'ValidationError') {
+  if (error.name === "ValidationError") {
     return res.status(400).json({
       success: false,
-      message: 'Validation Error',
-      errors: error.errors
+      message: "Validation Error",
+      errors: error.errors,
     });
   }
 
   // JWT errors
-  if (error.name === 'JsonWebTokenError') {
+  if (error.name === "JsonWebTokenError") {
     return res.status(401).json({
       success: false,
-      message: 'Invalid token'
+      message: "Invalid token",
     });
   }
 
-  if (error.name === 'TokenExpiredError') {
+  if (error.name === "TokenExpiredError") {
     return res.status(401).json({
       success: false,
-      message: 'Token expired'
+      message: "Token expired",
     });
   }
 
   // Database errors
-  if (error.code === 'ER_DUP_ENTRY') {
+  if (error.code === "ER_DUP_ENTRY") {
     return res.status(400).json({
       success: false,
-      message: 'Duplicate entry. This record already exists.'
+      message: "Duplicate entry. This record already exists.",
     });
   }
 
   // Default error
   res.status(error.statusCode || 500).json({
     success: false,
-    message: error.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    message: error.message || "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
   });
 });
 
@@ -118,50 +120,20 @@ app.use((error, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`
+    message: `Route ${req.originalUrl} not found`,
   });
 });
 
 // Start server
-const startServer = async () => {
-  try {
-    // Test database connection if available
-    if (testConnection) {
-      try {
-        await testConnection();
-        dbConnected = true;
-      } catch (dbError) {
-        console.log('⚠️  Database connection failed:', dbError.message);
-        console.log('📝 Server will start anyway...');
-      }
-    }
-    
+testConnection()
+  .then((res) => {
+    console.log("Connected To The Database");
     app.listen(PORT, () => {
-      console.log(`
-🚀 Server is running on port ${PORT}
-📍 Environment: ${process.env.NODE_ENV || 'development'}
-🔗 API URL: http://localhost:${PORT}
-📊 Health Check: http://localhost:${PORT}/health
-💾 Database: ${dbConnected ? 'Connected' : 'Disconnected'}
-      `);
+      console.log(`Server is Running ${PORT}`);
     });
-  } catch (error) {
-    console.error('Failed to start server:', error.message);
-    process.exit(1);
-  }
-};
-
-startServer();
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  process.exit(0);
-});
+  })
+  .catch((err) => {
+    console.log("Connection failed", err.message);
+  });
 
 module.exports = app;

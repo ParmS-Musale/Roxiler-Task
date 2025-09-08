@@ -1,38 +1,34 @@
 const { executeQuery } = require('../config/database');
 const { generateToken } = require('../config/auth');
-const { 
-  validateEmail, 
-  validatePassword, 
-  validateUserRegistration,
-  hashPassword, 
-  comparePassword 
-} = require('../utils/validators');
+const bcrypt = require('bcryptjs');
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
-// @access  Public
+// Hash password helper
+const hashPassword = async (password) => {
+  try {
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
+    return await bcrypt.hash(password, saltRounds);
+  } catch (error) {
+    throw new Error('Password hashing failed');
+  }
+};
+
+// Compare password helper
+const comparePassword = async (password, hashedPassword) => {
+  try {
+    return await bcrypt.compare(password, hashedPassword);
+  } catch (error) {
+    throw new Error('Password comparison failed');
+  }
+};
+
 const register = async (req, res) => {
   try {
-    const { name, email, password, address } = req.body;
-
-    // Validate input data
-    const validation = await validateUserRegistration({
-      name, email, password, address, role: 'normal_user'
-    });
-
-    if (!validation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: validation.errors
-      });
-    }
-
-    const { sanitizedData } = validation;
+    // Validation is handled by middleware, so we can trust the data
+    const { name, email, password, address, role = 'normal_user' } = req.body;
 
     // Check if user already exists
     const existingUserQuery = 'SELECT id FROM users WHERE email = ?';
-    const existingUsers = await executeQuery(existingUserQuery, [sanitizedData.email]);
+    const existingUsers = await executeQuery(existingUserQuery, [email]);
 
     if (existingUsers.length > 0) {
       return res.status(400).json({
@@ -51,11 +47,11 @@ const register = async (req, res) => {
     `;
     
     const result = await executeQuery(insertUserQuery, [
-      sanitizedData.name,
-      sanitizedData.email,
+      name,
+      email,
       hashedPassword,
-      sanitizedData.address,
-      sanitizedData.role
+      address || null,
+      role
     ]);
 
     // Get the created user (without password)
@@ -98,22 +94,8 @@ const register = async (req, res) => {
 // @access  Public
 const login = async (req, res) => {
   try {
+    // Validation is handled by middleware
     const { email, password } = req.body;
-
-    // Validate input
-    const emailValidation = validateEmail(email);
-    const passwordValidation = validatePassword(password);
-
-    if (!emailValidation.isValid || !passwordValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide valid email and password',
-        errors: {
-          ...(!emailValidation.isValid && { email: emailValidation.errors }),
-          ...(!passwordValidation.isValid && { password: passwordValidation.errors })
-        }
-      });
-    }
 
     // Find user by email
     const userQuery = `
@@ -122,7 +104,7 @@ const login = async (req, res) => {
       WHERE email = ?
     `;
     
-    const users = await executeQuery(userQuery, [emailValidation.sanitized]);
+    const users = await executeQuery(userQuery, [email]);
 
     if (users.length === 0) {
       return res.status(401).json({
@@ -229,24 +211,8 @@ const getMe = async (req, res) => {
 // @access  Private
 const updatePassword = async (req, res) => {
   try {
+    // Validation is handled by middleware
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Current password and new password are required'
-      });
-    }
-
-    // Validate new password
-    const passwordValidation = validatePassword(newPassword);
-    if (!passwordValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: 'New password validation failed',
-        errors: { newPassword: passwordValidation.errors }
-      });
-    }
 
     // Get current user with password
     const userQuery = 'SELECT password_hash FROM users WHERE id = ?';
@@ -291,13 +257,8 @@ const updatePassword = async (req, res) => {
   }
 };
 
-// @desc    Logout user
-// @route   POST /api/auth/logout
-// @access  Private
 const logout = async (req, res) => {
   try {
-    // For JWT tokens, logout is handled on the client side
-    // Here we can log the logout event or implement token blacklisting if needed
     
     res.json({
       success: true,

@@ -1,8 +1,7 @@
-// Create this file as test-db-connection.js in your backend directory
-const mysql = require('mysql2/promise');
-require('dotenv').config();
+const mysql = require("mysql2/promise");
+require("dotenv").config();
 
-console.log('🔍 Testing database connection...');
+console.log('🔧 Loading database configuration...');
 console.log('Environment variables:');
 console.log('- DB_HOST:', process.env.DB_HOST);
 console.log('- DB_USER:', process.env.DB_USER);
@@ -10,45 +9,37 @@ console.log('- DB_NAME:', process.env.DB_NAME);
 console.log('- DB_PORT:', process.env.DB_PORT);
 console.log('- DB_PASSWORD:', process.env.DB_PASSWORD ? '***' : 'NOT SET');
 
+// Database configuration
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'store_rating_db',
+  port: parseInt(process.env.DB_PORT) || 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
+
+// Create connection pool for better performance
+const pool = mysql.createPool(dbConfig);
+
+// Test database connection function
 async function testConnection() {
   let connection;
   
   try {
     console.log('\n🔄 Step 1: Testing basic MySQL connection...');
     
-    // Test basic connection without database
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      port: parseInt(process.env.DB_PORT) || 3306
-    });
-    
+    // Test basic connection
+    connection = await pool.getConnection();
     console.log('✅ Step 1: Basic MySQL connection successful!');
     
-    console.log('\n🔄 Step 2: Checking available databases...');
-    const [databases] = await connection.execute('SHOW DATABASES');
-    console.log('Available databases:', databases.map(db => Object.values(db)[0]));
+    console.log('\n🔄 Step 2: Checking database...');
+    const [rows] = await connection.execute('SELECT DATABASE() as current_db');
+    console.log(`📋 Current database: ${rows[0].current_db}`);
     
-    // Check if our database exists
-    const dbName = process.env.DB_NAME || 'store_rating_db';
-    const dbExists = databases.some(db => Object.values(db)[0] === dbName);
-    
-    if (!dbExists) {
-      console.log(`❌ Database '${dbName}' does not exist!`);
-      console.log(`💡 Creating database '${dbName}'...`);
-      
-      await connection.execute(`CREATE DATABASE ${dbName}`);
-      console.log(`✅ Database '${dbName}' created successfully!`);
-    } else {
-      console.log(`✅ Database '${dbName}' exists!`);
-    }
-    
-    console.log('\n🔄 Step 3: Testing connection to specific database...');
-    await connection.changeUser({ database: dbName });
-    console.log('✅ Step 3: Connected to specific database!');
-    
-    console.log('\n🔄 Step 4: Checking tables...');
+    console.log('\n🔄 Step 3: Checking tables...');
     const [tables] = await connection.execute('SHOW TABLES');
     
     if (tables.length === 0) {
@@ -58,9 +49,9 @@ async function testConnection() {
       console.log('✅ Tables found:', tables.map(t => Object.values(t)[0]));
       
       // Test a simple query
-      console.log('\n🔄 Step 5: Testing data query...');
+      console.log('\n🔄 Step 4: Testing data query...');
       const [users] = await connection.execute('SELECT COUNT(*) as count FROM users');
-      console.log(`✅ Step 5: Found ${users[0].count} users in database`);
+      console.log(`✅ Step 4: Found ${users[0].count} users in database`);
     }
     
     console.log('\n🎉 All database tests passed!');
@@ -86,12 +77,69 @@ async function testConnection() {
       console.log('2. Check the database name in .env file');
     }
     
+    throw error;
   } finally {
     if (connection) {
-      await connection.end();
+      connection.release();
       console.log('\n🔌 Connection closed');
     }
   }
 }
 
-testConnection();
+// Execute query function - THIS IS WHAT WAS MISSING!
+const executeQuery = async (query, params = []) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [results] = await connection.execute(query, params);
+    console.log(`✅ Query executed successfully: ${query.substring(0, 50)}...`);
+    return results;
+  } catch (error) {
+    console.error('❌ Query execution failed:', error.message);
+    console.error('Query:', query);
+    console.error('Params:', params);
+    throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+// Execute transaction function
+const executeTransaction = async (queries) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    const results = [];
+    for (const { query, params } of queries) {
+      const [result] = await connection.execute(query, params || []);
+      results.push(result);
+    }
+    
+    await connection.commit();
+    return results;
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    console.error('❌ Transaction failed:', error.message);
+    throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+// Export all the functions that your app needs
+module.exports = {
+  pool,
+  testConnection,
+  executeQuery,        // THIS WAS MISSING - auth controller needs this!
+  executeTransaction
+};
+
+console.log('✅ Database module loaded with exports:', Object.keys(module.exports));

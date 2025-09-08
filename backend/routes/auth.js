@@ -1,6 +1,11 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const {
+  validateUserRegistration,
+  validateUserLogin,
+  validatePasswordUpdate
+} = require('../middleware/validation');
+const {
   register,
   login,
   getMe,
@@ -10,29 +15,14 @@ const {
 
 const router = express.Router();
 
-// @route   POST /api/auth/register
-// @desc    Register new user
-// @access  Public
-router.post('/register', register);
+router.post('/register', validateUserRegistration, register);
 
-// @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
-router.post('/login', login);
+router.post('/login', validateUserLogin, login);
 
-// @route   GET /api/auth/me
-// @desc    Get current user profile
-// @access  Private
 router.get('/me', authenticate, getMe);
 
-// @route   PUT /api/auth/password
-// @desc    Update user password
-// @access  Private
-router.put('/password', authenticate, updatePassword);
+router.put('/password', authenticate, validatePasswordUpdate, updatePassword);
 
-// @route   POST /api/auth/logout
-// @desc    Logout user
-// @access  Private
 router.post('/logout', authenticate, logout);
 
 module.exports = router;

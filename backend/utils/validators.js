@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const validator = require ("validator");
 
 // Validation rules based on requirements
 const validationRules = {
@@ -25,34 +26,34 @@ const validationRules = {
 };
 
 // Validate name
-const validateName = (name) => {
-  const errors = [];
+// const validateName = (name) => {
+//   const errors = [];
   
-  if (!name || typeof name !== 'string') {
-    errors.push('Name is required');
-    return { isValid: false, errors };
-  }
+//   if (!name || typeof name !== 'string') {
+//     errors.push('Name is required');
+//     return { isValid: false, errors };
+//   }
   
-  const trimmedName = name.trim();
+//   const trimmedName = name.trim();
   
-  if (trimmedName.length < validationRules.name.minLength) {
-    errors.push(`Name must be at least ${validationRules.name.minLength} characters long`);
-  }
+//   if (trimmedName.length < validationRules.name.minLength) {
+//     errors.push(`Name must be at least ${validationRules.name.minLength} characters long`);
+//   }
   
-  if (trimmedName.length > validationRules.name.maxLength) {
-    errors.push(`Name must be no more than ${validationRules.name.maxLength} characters long`);
-  }
+//   if (trimmedName.length > validationRules.name.maxLength) {
+//     errors.push(`Name must be no more than ${validationRules.name.maxLength} characters long`);
+//   }
   
-  if (!validationRules.name.pattern.test(trimmedName)) {
-    errors.push('Name can only contain letters and spaces');
-  }
+//   if (!validationRules.name.pattern.test(trimmedName)) {
+//     errors.push('Name can only contain letters and spaces');
+//   }
   
-  return {
-    isValid: errors.length === 0,
-    errors,
-    sanitized: trimmedName
-  };
-};
+//   return {
+//     isValid: errors.length === 0,
+//     errors,
+//     sanitized: trimmedName
+//   };
+// };
 
 // Validate email
 const validateEmail = (email) => {
@@ -210,9 +211,8 @@ const validateUserRegistration = async (userData) => {
   const errors = {};
   
   // Validate each field
-  const nameValidation = validateName(name);
-  if (!nameValidation.isValid) {
-    errors.name = nameValidation.errors;
+  if (!validator.isLength(name,{min:20 , max:60})) {
+    errors.name = "Name Validation Failed"
   }
   
   const emailValidation = validateEmail(email);
@@ -240,7 +240,7 @@ const validateUserRegistration = async (userData) => {
   let sanitizedData = null;
   if (isValid) {
     sanitizedData = {
-      name: nameValidation.sanitized,
+      // name: nameValidation.sanitized,
       email: emailValidation.sanitized,
       address: addressValidation.sanitized,
       role: roleValidation.sanitized
