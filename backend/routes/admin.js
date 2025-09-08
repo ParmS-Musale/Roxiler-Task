@@ -10,6 +10,6 @@ const router = express.Router();
 
 router.get('/dashboard', authenticate, authorize('admin'), getDashboard);
 
-router.get('/users', authenticate, authorize('admin'), validateSearch, getAdminUsers);
+router.get('/users', authenticate, authorize('admin'), getAdminUsers);
 
 module.exports = router;
