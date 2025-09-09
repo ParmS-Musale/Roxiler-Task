@@ -21,24 +21,29 @@ const getAllUsers = async (req, res) => {
       sortOrder = 'desc'
     } = req.query;
 
+    // Convert to integers
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * limitNum;
+
     // Build WHERE clause for filtering
     let whereConditions = ['is_active = TRUE'];
     let queryParams = [];
 
     // Search filter (name, email, address)
-    if (search) {
+    if (search && search.trim()) {
       whereConditions.push('(name LIKE ? OR email LIKE ? OR address LIKE ?)');
-      const searchTerm = `%${search}%`;
+      const searchTerm = `%${search.trim()}%`;
       queryParams.push(searchTerm, searchTerm, searchTerm);
     }
 
     // Role filter
-    if (role) {
+    if (role && role.trim()) {
       whereConditions.push('role = ?');
-      queryParams.push(role);
+      queryParams.push(role.trim());
     }
 
-    const whereClause = whereConditions.join(' AND ');
+    const whereClause = 'WHERE ' + whereConditions.join(' AND ');
 
     // Validate sort parameters
     const allowedSortFields = ['name', 'email', 'role', 'created_at', 'updated_at'];
@@ -47,11 +52,8 @@ const getAllUsers = async (req, res) => {
     const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const validSortOrder = allowedSortOrders.includes(sortOrder.toLowerCase()) ? sortOrder.toLowerCase() : 'desc';
 
-    // Calculate pagination
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-
     // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM users WHERE ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM users ${whereClause}`;
     const totalResult = await executeQuery(countQuery, queryParams);
     const totalUsers = totalResult[0].total;
 
@@ -59,29 +61,27 @@ const getAllUsers = async (req, res) => {
     const usersQuery = `
       SELECT id, name, email, address, role, created_at, updated_at
       FROM users 
-      WHERE ${whereClause}
+      ${whereClause}
       ORDER BY ${validSortBy} ${validSortOrder}
-      LIMIT ? OFFSET ?
+      LIMIT ${limitNum} OFFSET ${offset}
     `;
 
-    const users = await executeQuery(usersQuery, [...queryParams, parseInt(limit), offset]);
+    const users = await executeQuery(usersQuery, queryParams);
 
     // Calculate pagination info
-    const totalPages = Math.ceil(totalUsers / parseInt(limit));
-    const hasNextPage = parseInt(page) < totalPages;
-    const hasPrevPage = parseInt(page) > 1;
+    const totalPages = Math.ceil(totalUsers / limitNum);
 
     res.json({
       success: true,
       data: {
         users,
         pagination: {
-          currentPage: parseInt(page),
+          currentPage: pageNum,
           totalPages,
           totalUsers,
-          hasNextPage,
-          hasPrevPage,
-          limit: parseInt(limit)
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1,
+          limit: limitNum
         }
       }
     });
@@ -159,7 +159,7 @@ const getUserById = async (req, res) => {
 // @access  Private/Admin
 const createUser = async (req, res) => {
   try {
-    // Validation is handled by middleware
+    // Validation is handled by middleware, so we can trust the data
     const { name, email, password, address, role = 'normal_user' } = req.body;
 
     // Check if user already exists
