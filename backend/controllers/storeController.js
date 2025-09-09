@@ -1,7 +1,6 @@
 const Store = require('../models/Store');
-const User = require('../models/User');
+// const User = require('../models/User');
 const { validationResult } = require('express-validator');
-const { Op } = require('sequelize');
 
 // GET /api/stores - Get all stores with search/pagination (Public)
 const getAllStores = async (req, res) => {
@@ -18,51 +17,25 @@ const getAllStores = async (req, res) => {
     } = req.query;
 
     const offset = (page - 1) * limit;
-    const whereClause = { isActive: true };
-
-    // Search functionality
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
-        { tags: { [Op.contains]: [search.toLowerCase()] } }
-      ];
-    }
-
-    // Category filter
-    if (category) {
-      whereClause.category = category;
-    }
-
-    // City filter
-    if (city) {
-      whereClause['address.city'] = { [Op.iLike]: `%${city}%` };
-    }
-
-    // Rating filter
-    if (minRating > 0) {
-      whereClause.averageRating = { [Op.gte]: minRating };
-    }
-
-    // Valid sort fields
-    const validSortFields = ['name', 'averageRating', 'totalRatings', 'createdAt'];
-    const orderField = validSortFields.includes(sortBy) ? sortBy : 'name';
-    const orderDirection = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'ASC';
-
-    const { count, rows: stores } = await Store.findAndCountAll({
-      where: whereClause,
-      include: [{
-        model: User,
-        as: 'owner',
-        attributes: ['id', 'name', 'email']
-      }],
-      order: [[orderField, orderDirection]],
+    
+    const filters = {
+      search: search.trim(),
+      category: category.trim(),
+      city: city.trim(),
+      minRating: parseFloat(minRating),
+      sortBy,
+      sortOrder,
       limit: parseInt(limit),
-      offset: parseInt(offset),
-      distinct: true
-    });
+      offset: parseInt(offset)
+    };
 
-    const totalPages = Math.ceil(count / limit);
+    // Get stores and total count
+    const [stores, totalCount] = await Promise.all([
+      Store.findAll(filters),
+      Store.count(filters)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
 
     res.json({
       success: true,
@@ -71,7 +44,7 @@ const getAllStores = async (req, res) => {
         pagination: {
           currentPage: parseInt(page),
           totalPages,
-          totalStores: count,
+          totalStores: totalCount,
           hasNext: page < totalPages,
           hasPrev: page > 1
         }
@@ -92,14 +65,14 @@ const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const store = await Store.findOne({
-      where: { id, isActive: true },
-      include: [{
-        model: User,
-        as: 'owner',
-        attributes: ['id', 'name', 'email', 'createdAt']
-      }]
-    });
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid store ID is required'
+      });
+    }
+
+    const store = await Store.findById(parseInt(id));
 
     if (!store) {
       return res.status(404).json({
@@ -148,7 +121,7 @@ const createStore = async (req, res) => {
     } = req.body;
 
     // Verify owner exists and has appropriate role
-    const owner = await User.findByPk(ownerId);
+    const owner = await User.findById(ownerId);
     if (!owner) {
       return res.status(404).json({
         success: false,
@@ -163,26 +136,21 @@ const createStore = async (req, res) => {
       });
     }
 
-    const store = await Store.create({
-      name,
-      description,
+    const storeData = {
+      name: name.trim(),
+      description: description.trim(),
       category,
       address,
       location,
       contact: contact || {},
-      ownerId,
+      owner_id: ownerId,
       images: images || [],
-      operatingHours: operatingHours || {},
-      tags: tags ? tags.map(tag => tag.toLowerCase()) : []
-    });
+      operating_hours: operatingHours || {},
+      tags: tags ? tags.map(tag => tag.toLowerCase().trim()) : []
+    };
 
-    const newStore = await Store.findByPk(store.id, {
-      include: [{
-        model: User,
-        as: 'owner',
-        attributes: ['id', 'name', 'email']
-      }]
-    });
+    const storeId = await Store.create(storeData);
+    const newStore = await Store.findById(storeId);
 
     res.status(201).json({
       success: true,
@@ -215,7 +183,14 @@ const updateStore = async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    const store = await Store.findByPk(id);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid store ID is required'
+      });
+    }
+
+    const store = await Store.findById(parseInt(id));
     if (!store) {
       return res.status(404).json({
         success: false,
@@ -224,7 +199,7 @@ const updateStore = async (req, res) => {
     }
 
     // Check permissions: Admin or store owner
-    if (userRole !== 'admin' && store.ownerId !== userId) {
+    if (userRole !== 'admin' && store.owner_id !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this store'
@@ -233,38 +208,27 @@ const updateStore = async (req, res) => {
 
     const {
       name,
-      description,
-      category,
+      email,
       address,
-      location,
-      contact,
-      images,
-      operatingHours,
-      tags,
       isActive
     } = req.body;
 
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (category !== undefined) updateData.category = category;
-    if (address !== undefined) updateData.address = address;
-    if (location !== undefined) updateData.location = location;
-    if (contact !== undefined) updateData.contact = contact;
-    if (images !== undefined) updateData.images = images;
-    if (operatingHours !== undefined) updateData.operatingHours = operatingHours;
-    if (tags !== undefined) updateData.tags = tags.map(tag => tag.toLowerCase());
-    if (isActive !== undefined && userRole === 'admin') updateData.isActive = isActive;
+    if (name !== undefined) updateData.name = name.trim();
+    if (email !== undefined) updateData.email = email ? email.trim() : null;
+    if (address !== undefined) updateData.address = address ? address.trim() : null;
+    if (isActive !== undefined && userRole === 'admin') updateData.is_active = isActive;
 
-    await store.update(updateData);
+    const updated = await Store.update(parseInt(id), updateData);
+    
+    if (!updated) {
+      return res.status(400).json({
+        success: false,
+        message: 'No changes made to store'
+      });
+    }
 
-    const updatedStore = await Store.findByPk(id, {
-      include: [{
-        model: User,
-        as: 'owner',
-        attributes: ['id', 'name', 'email']
-      }]
-    });
+    const updatedStore = await Store.findById(parseInt(id));
 
     res.json({
       success: true,
@@ -286,7 +250,14 @@ const deleteStore = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const store = await Store.findByPk(id);
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid store ID is required'
+      });
+    }
+
+    const store = await Store.findById(parseInt(id));
     if (!store) {
       return res.status(404).json({
         success: false,
@@ -294,8 +265,15 @@ const deleteStore = async (req, res) => {
       });
     }
 
-    // Soft delete by setting isActive to false
-    await store.update({ isActive: false });
+    // Soft delete by setting is_active to false
+    const deleted = await Store.delete(parseInt(id));
+    
+    if (!deleted) {
+      return res.status(400).json({
+        success: false,
+        message: 'Error deleting store'
+      });
+    }
 
     res.json({
       success: true,

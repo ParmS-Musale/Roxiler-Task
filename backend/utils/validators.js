@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const validator = require ("validator");
+const { body, param, query, validationResult } = require('express-validator');
 
 // Validation rules based on requirements
 const validationRules = {
@@ -254,8 +255,87 @@ const validateUserRegistration = async (userData) => {
   };
 };
 
+const storeValidation = {
+  create: [
+    body('name')
+      .trim()
+      .notEmpty()
+      .withMessage('Store name is required')
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Store name must be between 1-100 characters'),
+    
+    body('description')
+      .trim()
+      .notEmpty()
+      .withMessage('Description is required')
+      .isLength({ min: 1, max: 500 })
+      .withMessage('Description must be between 1-500 characters'),
+    
+    body('category')
+      .notEmpty()
+      .withMessage('Category is required')
+      .isIn([
+        'Restaurant', 'Clothing', 'Electronics', 'Grocery', 'Pharmacy', 
+        'Books', 'Sports', 'Beauty', 'Home & Garden', 'Automotive', 'Other'
+      ])
+      .withMessage('Invalid category'),
+    
+    body('address')
+      .isObject()
+      .withMessage('Address must be an object'),
+    
+    body('address.street')
+      .trim()
+      .notEmpty()
+      .withMessage('Street address is required'),
+    
+    body('address.city')
+      .trim()
+      .notEmpty()
+      .withMessage('City is required'),
+    
+    body('address.state')
+      .trim()
+      .notEmpty()
+      .withMessage('State is required'),
+    
+    body('address.zipCode')
+      .trim()
+      .notEmpty()
+      .withMessage('Zip code is required')
+      .matches(/^\d{5}(-\d{4})?$/)
+      .withMessage('Invalid zip code format'),
+    
+    body('ownerId')
+      .isInt({ min: 1 })
+      .withMessage('Valid owner ID is required')
+  ],
+
+  update: [
+    param('id')
+      .isInt({ min: 1 })
+      .withMessage('Valid store ID is required'),
+    
+    body('name')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('Store name cannot be empty')
+      .isLength({ min: 1, max: 100 })
+      .withMessage('Store name must be between 1-100 characters'),
+    
+    body('description')
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage('Description cannot be empty')
+      .isLength({ min: 1, max: 500 })
+      .withMessage('Description must be between 1-500 characters')
+  ]
+};
+
 module.exports = {
-  validateName,
+  // validateName,
   validateEmail,
   validatePassword,
   validateAddress,
@@ -264,5 +344,6 @@ module.exports = {
   hashPassword,
   comparePassword,
   validateUserRegistration,
-  validationRules
+  validationRules,
+  storeValidation
 };
