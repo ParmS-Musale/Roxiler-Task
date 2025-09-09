@@ -2,15 +2,15 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const storeRoutes = require('./routes/stores');
+const storeRoutes = require("./routes/stores");
 
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use('/api/stores', storeRoutes);
-
+app.use(express.json()); // Body parsing first
+app.use("/api/stores", storeRoutes);
 
 // Test database connection safely
 let dbConnected = false;
@@ -31,8 +31,6 @@ try {
 } catch (error) {
   console.error("❌ Database config import failed:", error.message);
 }
-
-
 
 // Security middleware
 app.use(helmet());
@@ -59,13 +57,21 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+app.use((req, res, next) => {
+  if (req.method === 'POST' || req.method === 'PUT') {
+    console.log(`📝 ${req.method} ${req.path}`);
+    console.log('📦 Body parsed:', req.body);
+    console.log('📦 Body type:', typeof req.body);
+    console.log('📦 Body keys:', Object.keys(req.body || {}));
+  }
+  next();
+})
+
 // Request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
-
-
 
 // Health check
 app.get("/health", (req, res) => {
@@ -153,21 +159,24 @@ try {
 } catch (error) {
   console.error("❌ Admin routes failed to load:", error.message);
   app.use("/api/admin", (req, res) => {
-    res.status(500).json({ success: false, message: "Admin routes not available" });
+    res
+      .status(500)
+      .json({ success: false, message: "Admin routes not available" });
   });
 }
 
 try {
-  const storeRoutes = require('./routes/stores');
-  app.use('/api/stores', storeRoutes);
+  const storeRoutes = require("./routes/stores");
+  app.use("/api/stores", storeRoutes);
   console.log("✅ Store routes loaded");
 } catch (error) {
   console.error("❌ Admin routes failed to load:", error.message);
   app.use("/api/stores", (req, res) => {
-    res.status(500).json({ success: false, message: "Stores routes not available" });
+    res
+      .status(500)
+      .json({ success: false, message: "Stores routes not available" });
   });
 }
-
 
 // Global error handler
 app.use((error, req, res, next) => {

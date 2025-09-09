@@ -1,5 +1,5 @@
 const Store = require('../models/Store');
-// const User = require('../models/User');
+const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
 // GET /api/stores - Get all stores with search/pagination (Public)

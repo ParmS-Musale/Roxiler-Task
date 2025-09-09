@@ -182,16 +182,24 @@ const validatePagination = [
 ];
 
 const validateStoreCreation = [
+  // Debug middleware to see what we're receiving
+  (req, res, next) => {
+    console.log('🔍 DEBUG - Request body received:', req.body);
+    console.log('🔍 DEBUG - Request headers:', req.headers);
+    console.log('🔍 DEBUG - Content-Type:', req.headers['content-type']);
+    next();
+  },
+  
   body('name')
-    .trim()
+    .exists()
+    .withMessage('Name field is missing')
     .notEmpty()
-    .withMessage('Store name is required')
+    .withMessage('Store name cannot be empty')
     .isLength({ min: 1, max: 255 })
     .withMessage('Store name must be between 1-255 characters'),
   
   body('email')
     .optional()
-    .trim()
     .isEmail()
     .withMessage('Invalid email format')
     .isLength({ max: 255 })
@@ -199,7 +207,6 @@ const validateStoreCreation = [
   
   body('address')
     .optional()
-    .trim()
     .isLength({ max: 1000 })
     .withMessage('Address must not exceed 1000 characters'),
   
@@ -208,14 +215,22 @@ const validateStoreCreation = [
     .isInt({ min: 1 })
     .withMessage('Valid owner ID is required'),
 
-  // Validation result handler
+  // Validation result handler with detailed logging
   (req, res, next) => {
     const errors = validationResult(req);
+    
+    console.log('🔍 DEBUG - Validation errors:', errors.array());
+    console.log('🔍 DEBUG - Processed body after validation:', req.body);
+    
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: errors.array()
+        errors: errors.array(),
+        debug: {
+          receivedBody: req.body,
+          contentType: req.headers['content-type']
+        }
       });
     }
     next();
@@ -223,13 +238,19 @@ const validateStoreCreation = [
 ];
 
 const validateStoreUpdate = [
+  // Debug middleware
+  (req, res, next) => {
+    console.log('🔍 DEBUG UPDATE - Request body:', req.body);
+    console.log('🔍 DEBUG UPDATE - Params:', req.params);
+    next();
+  },
+  
   param('id')
     .isInt({ min: 1 })
     .withMessage('Valid store ID is required'),
   
   body('name')
     .optional()
-    .trim()
     .notEmpty()
     .withMessage('Store name cannot be empty')
     .isLength({ min: 1, max: 255 })
@@ -237,15 +258,11 @@ const validateStoreUpdate = [
   
   body('email')
     .optional()
-    .trim()
     .isEmail()
-    .withMessage('Invalid email format')
-    .isLength({ max: 255 })
-    .withMessage('Email must not exceed 255 characters'),
+    .withMessage('Invalid email format'),
   
   body('address')
     .optional()
-    .trim()
     .isLength({ max: 1000 })
     .withMessage('Address must not exceed 1000 characters'),
   
@@ -254,14 +271,17 @@ const validateStoreUpdate = [
     .isBoolean()
     .withMessage('isActive must be a boolean'),
 
-  // Validation result handler
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: errors.array()
+        errors: errors.array(),
+        debug: {
+          receivedBody: req.body,
+          params: req.params
+        }
       });
     }
     next();
@@ -281,31 +301,9 @@ const validateStoreSearch = [
   
   query('search')
     .optional()
-    .trim()
     .isLength({ min: 1, max: 100 })
     .withMessage('Search term must be between 1-100 characters'),
-  
-  query('ownerId')
-    .optional()
-    .isInt({ min: 1 })
-    .withMessage('Owner ID must be a positive integer'),
-  
-  query('minRating')
-    .optional()
-    .isFloat({ min: 0, max: 5 })
-    .withMessage('Rating must be between 0-5'),
-  
-  query('sortBy')
-    .optional()
-    .isIn(['name', 'average_rating', 'total_ratings', 'created_at'])
-    .withMessage('Invalid sort field'),
-  
-  query('sortOrder')
-    .optional()
-    .isIn(['ASC', 'DESC', 'asc', 'desc'])
-    .withMessage('Sort order must be ASC or DESC'),
 
-  // Validation result handler (optional for search since we can continue with invalid params)
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -319,6 +317,187 @@ const validateStoreSearch = [
   }
 ];
 
+const validateRatingSubmission = [
+  body('storeId')
+    .isInt({ min: 1 })
+    .withMessage('Store ID must be a positive integer'),
+  
+  body('rating')
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating must be an integer between 1 and 5'),
+  
+  body('review')
+    .optional()
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage('Review must be a string with maximum 1000 characters')
+    .trim(),
+  
+  body('isAnonymous')
+    .optional()
+    .isBoolean()
+    .withMessage('isAnonymous must be a boolean value')
+];
+
+// Validate rating update
+const validateRatingUpdate = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Rating ID must be a positive integer'),
+  
+  body('rating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating must be an integer between 1 and 5'),
+  
+  body('review')
+    .optional()
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage('Review must be a string with maximum 1000 characters')
+    .trim(),
+  
+  body('isAnonymous')
+    .optional()
+    .isBoolean()
+    .withMessage('isAnonymous must be a boolean value')
+];
+
+// Validate rating ID parameter
+const validateRatingId = [
+  param('id')
+    .isInt({ min: 1 })
+    .withMessage('Rating ID must be a positive integer')
+];
+
+// Validate store ID parameter
+const validateStoreId = [
+  param('storeId')
+    .isInt({ min: 1 })
+    .withMessage('Store ID must be a positive integer')
+];
+
+// Validate user ID parameter
+const validateUserId = [
+  param('userId')
+    .isInt({ min: 1 })
+    .withMessage('User ID must be a positive integer')
+];
+
+// Validate rating query parameters
+const validateRatingQuery = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  
+  query('rating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating filter must be between 1 and 5'),
+  
+  query('minRating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Min rating must be between 1 and 5'),
+  
+  query('maxRating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Max rating must be between 1 and 5'),
+  
+  query('sortBy')
+    .optional()
+    .isIn(['createdAt', 'updatedAt', 'rating'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, rating'),
+  
+  query('sortOrder')
+    .optional()
+    .isIn(['ASC', 'DESC'])
+    .withMessage('Sort order must be ASC or DESC'),
+  
+  query('hasReview')
+    .optional()
+    .isBoolean()
+    .withMessage('hasReview must be a boolean value'),
+  
+  query('userId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('User ID filter must be a positive integer'),
+  
+  query('storeId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Store ID filter must be a positive integer')
+];
+
+// Validate store rating query parameters
+const validateStoreRatingQuery = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  
+  query('rating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating filter must be between 1 and 5'),
+  
+  query('minRating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Min rating must be between 1 and 5'),
+  
+  query('sortBy')
+    .optional()
+    .isIn(['createdAt', 'updatedAt', 'rating'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, rating'),
+  
+  query('sortOrder')
+    .optional()
+    .isIn(['ASC', 'DESC'])
+    .withMessage('Sort order must be ASC or DESC'),
+  
+  query('hasReview')
+    .optional()
+    .isBoolean()
+    .withMessage('hasReview must be a boolean value')
+];
+
+// Validate user rating query parameters
+const validateUserRatingQuery = [
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  
+  query('sortBy')
+    .optional()
+    .isIn(['createdAt', 'updatedAt', 'rating'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, rating'),
+  
+  query('sortOrder')
+    .optional()
+    .isIn(['ASC', 'DESC'])
+    .withMessage('Sort order must be ASC or DESC')
+];
+
 module.exports = {
   validateUserRegistration,
   validateUserLogin,
@@ -326,5 +505,12 @@ module.exports = {
   // handleValidationErrors,
   validateStoreCreation,
   validateStoreUpdate,
-  validateStoreSearch
+  validateStoreSearch,validateRatingSubmission,
+  validateRatingUpdate,
+  validateRatingId,
+  validateStoreId,
+  validateUserId,
+  validateRatingQuery,
+  validateStoreRatingQuery,
+  validateUserRatingQuery
 };
