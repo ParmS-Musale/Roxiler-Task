@@ -1,5 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { User, Star, Shield, Store, BarChart3, LogOut, Menu, X, Plus, Edit2, Trash2 } from 'lucide-react';
+import './index.css';
+
 
 // Auth Context
 const AuthContext = createContext();
@@ -192,14 +194,6 @@ const LoginForm = ({ onToggle }) => {
               Sign up
             </button>
           </p>
-        </div>
-
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600 font-medium mb-2">Demo Accounts:</p>
-          <div className="space-y-1 text-xs text-gray-500">
-            <p><strong>Admin:</strong> admin@storerating.com / Admin@123</p>
-            <p><strong>User:</strong> dona@gmail.com / Dona@123</p>
-          </div>
         </div>
       </div>
     </div>
