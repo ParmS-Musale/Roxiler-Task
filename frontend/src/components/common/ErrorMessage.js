@@ -91,4 +91,4 @@ const ErrorMessage = ({
   );
 };
 
-export { ErrorMessage };
+export default ErrorMessage;

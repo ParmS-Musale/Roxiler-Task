@@ -16,3 +16,5 @@ const Loading = ({ message = 'Loading...', size = 'medium', className = '' }) =>
     </div>
   );
 };
+
+export default Loading;

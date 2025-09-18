@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
 // Initial state
@@ -121,16 +121,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Load current user
-  const loadUser = async () => {
+  const loadUser = useCallback(async () => {
     dispatch({ type: AUTH_ACTIONS.LOAD_USER_START });
-    
     try {
       const response = await api.get('/auth/me');
-      
       if (response.data.success) {
-        dispatch({ 
-          type: AUTH_ACTIONS.LOAD_USER_SUCCESS, 
-          payload: response.data.data 
+        dispatch({
+          type: AUTH_ACTIONS.LOAD_USER_SUCCESS,
+          payload: response.data.data
         });
       } else {
         throw new Error(response.data.message);
@@ -138,12 +136,21 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Load user error:', error);
       localStorage.removeItem('token');
-      dispatch({ 
-        type: AUTH_ACTIONS.LOAD_USER_FAILURE, 
-        payload: error.response?.data?.message || 'Failed to load user' 
+      dispatch({
+        type: AUTH_ACTIONS.LOAD_USER_FAILURE,
+        payload: error.response?.data?.message || 'Failed to load user'
       });
     }
-  };
+  }, []); // empty dependency array = stable function
+
+   // Load user on app start
+  useEffect(() => {
+    if (state.token) {
+      loadUser();
+    } else {
+      dispatch({ type: AUTH_ACTIONS.LOAD_USER_FAILURE, payload: null });
+    }
+  }, [state.token, loadUser]);
 
   // Register user
   const register = async (userData) => {
