@@ -275,12 +275,18 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is regular user
   const isUser = () => {
-    return hasRole('user');
+    return hasRole('normal_user');
   };
 
   // Get user's full name
   const getUserName = () => {
-    return state.user?.name || 'User';
+    if (!state.user?.name) return 'Guest';
+
+  const parts = state.user.name.trim().split(' ');
+  if (parts.length >= 2) {
+    return parts[0] + ' ' + parts[1];
+  }
+  return state.user.name;
   };
 
   // Get user's email
@@ -293,7 +299,7 @@ export const AuthProvider = ({ children }) => {
     const roleMap = {
       'admin': 'Administrator',
       'store_owner': 'Store Owner',
-      'user': 'User'
+      'normal_user': 'User'
     };
     return roleMap[state.user?.role] || 'User';
   };
