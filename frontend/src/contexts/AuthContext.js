@@ -311,7 +311,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: state.isAuthenticated,
     loading: state.loading,
     error: state.error,
-    
+  
+   
     // Actions
     register,
     login,
@@ -330,12 +331,16 @@ export const AuthProvider = ({ children }) => {
     getRoleDisplayName
   };
 
+      console.log(state.user);
+
+
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 // Custom hook to use auth context
 export const useAuth = () => {
